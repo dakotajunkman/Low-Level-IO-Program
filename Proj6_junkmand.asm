@@ -115,6 +115,8 @@ readVal     PROC
     mov     EBP, ESP
     push    ECX
     push    ESI
+    push    EAX
+    push    EBX
 
     ; set up loop counter for getting input and get string location in ESI
     mov     ECX, [EBP+8]
@@ -124,14 +126,12 @@ _inputLoop:
     ; use macro to get string input from user
     mGetString [EBP+28], [EBP+24], [EBP+20], [EBP+16]
 
-    ; ensure the number is not too big
-    mov     EBX, [EBP+16]
-    mov     EAX, 11
-    cmp     EAX, [EBX]
-    jl      _invalidInput
-    jmp     _test
-
-
+    ; set up to convert string to integer
+    push    ECX                                 ; hold current loop counter before starting another
+    mov     ECX, [EBX]                          ; set counter to number of bytes read
+    cld                                         ; ensure forward movement through input
+    xor     EBX, EBX
+    xor     EAX, EAX
 
 _invalidInput:
     ; handle invalid inputs
@@ -139,12 +139,12 @@ _invalidInput:
     call    WriteString
     jmp     _inputLoop
 
-
-
-_test:
-
+_endLoop:
+    pop     ECX                                 ; restore ECX before starting loop again
     loop    _inputLoop
 
+    pop     EBX
+    pop     EAX
     pop     ESI
     pop     ECX
     pop     EBP
