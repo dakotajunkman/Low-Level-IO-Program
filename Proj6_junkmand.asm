@@ -42,7 +42,7 @@ mGetString  MACRO   direction, memLoc, maxLength, amtRead
 ENDM
 
 INTS_TO_READ = 10
-MAXSTRING = 11
+MAXSTRING = 32
 
 .data
 
@@ -52,10 +52,11 @@ MAXSTRING = 11
     explanation     BYTE    "The number must fit in a 32 bit register. Once you have entered in 10 numbers I will",13,10
                     BYTE    "display the numbers, their sum, and their rounded average.",13,10,13,10,0
     askForNumber    BYTE    "Please enter a signed integer: ",0
+    errorString     BYTE    "ERROR: The number was too big/small or not a number at all!",13,10,0
     goodbye         BYTE    "Thanks for using the program! Goodbye!",13,10,0
 
     ; Arrays
-    inputString     BYTE    11 DUP(0)
+    inputString     BYTE    32 DUP(0)
     numberArray     SDWORD  INTS_TO_READ DUP(?)
 
     ; numbers
@@ -69,6 +70,7 @@ main PROC
     push    OFFSET explanation
     call    intro
 
+    push    OFFSET errorString
     push    OFFSET askForNumber
     push    OFFSET inputString
     push    MAXSTRING
@@ -112,19 +114,38 @@ readVal     PROC
     push    EBP
     mov     EBP, ESP
     push    ECX
+    push    ESI
 
-    ; set up loop counter for getting input
+    ; set up loop counter for getting input and get string location in ESI
     mov     ECX, [EBP+8]
+    mov     ESI, [EBP+24]
 
 _inputLoop:
     ; use macro to get string input from user
     mGetString [EBP+28], [EBP+24], [EBP+20], [EBP+16]
 
+    ; ensure the number is not too big
+    mov     EBX, [EBP+16]
+    mov     EAX, 11
+    cmp     EAX, [EBX]
+    jl      _invalidInput
+    jmp     _test
 
 
+
+_invalidInput:
+    ; handle invalid inputs
+    mov     EDX, [EBP+32]
+    call    WriteString
+    jmp     _inputLoop
+
+
+
+_test:
 
     loop    _inputLoop
 
+    pop     ESI
     pop     ECX
     pop     EBP
     ret
