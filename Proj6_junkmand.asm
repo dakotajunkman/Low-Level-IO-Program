@@ -18,6 +18,7 @@ mGetString  MACRO   direction, memLoc, maxLength, amtRead
     push    EDX
     push    ECX
     push    EAX
+    push    EBX
 
     ; prompt user to enter a number
     mov     EDX, direction
@@ -29,9 +30,11 @@ mGetString  MACRO   direction, memLoc, maxLength, amtRead
     call    ReadString
 
     ; store bytes read in memory
-    mov     amtRead, EAX
+    mov     EBX, amtRead
+    mov     [EBX], EAX
 
     ; preserve registers
+    pop     EBX
     pop     EAX
     pop     ECX
     pop     EDX
