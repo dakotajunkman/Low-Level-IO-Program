@@ -58,6 +58,7 @@ MAXSTRING = 32
     ; Arrays
     inputString     BYTE    32 DUP(0)
     numberArray     SDWORD  INTS_TO_READ DUP(?)
+    multiplier      SDWORD  ?
 
     ; numbers
     bytesRead       DWORD   0
@@ -70,6 +71,7 @@ main PROC
     push    OFFSET explanation
     call    intro
 
+    push    OFFSET multiplier
     push    OFFSET errorString
     push    OFFSET askForNumber
     push    OFFSET inputString
@@ -118,26 +120,78 @@ readVal     PROC
     push    EAX
     push    EBX
 
-    ; set up loop counter for getting input and get string location in ESI
+    ; set up loop counter for getting input
     mov     ECX, [EBP+8]
-    mov     ESI, [EBP+24]
 
 _inputLoop:
     ; use macro to get string input from user
     mGetString [EBP+28], [EBP+24], [EBP+20], [EBP+16]
+    mov     ESI, [EBP+24]
 
-    ; set up to convert string to integer
-    push    ECX                                 ; hold current loop counter before starting another
-    mov     ECX, [EBX]                          ; set counter to number of bytes read
-    cld                                         ; ensure forward movement through input
-    xor     EBX, EBX
-    xor     EAX, EAX
+    ; check that first character is a sign or numeric
+    cld
+    lodsb
+    cmp     AL, '-'
+    je      _negNum
+    cmp     AL, '+'
+    je      _posNum
+    cmp     AL, 48
+    jl      _invalidInput
+    cmp     AL, 57
+    jl      _onlyNumeric                        ; anything else is invalid and will carry through
 
 _invalidInput:
     ; handle invalid inputs
     mov     EDX, [EBP+32]
     call    WriteString
     jmp     _inputLoop
+
+_negNum:
+    ; move a -1 in to memory for usage later
+    mov     EBX, [EBP+36]
+    mov     EAX, -1
+    mov     [EBX], EAX
+
+    ; set first character of string to '0' so it does not appear as bad input
+    mov     EDI, [EBP+24]
+    mov     AL, '0'
+    stosb
+    jmp     _onlyNumeric
+
+_posNum:
+    ; move a 1 in to memory for usage later
+    mov     EBX, [EBP+36]
+    mov     EAX, 1
+    mov     [EBX], EAX
+
+    ; set first character of string to '0' so it does not appear as bad input
+    mov     EDI, [EBP+24]
+    mov     AL, '0'
+    stosb
+
+_onlyNumeric:
+    ; set up loop counter to check that input contains only numbers
+    push    ECX
+    mov     EAX, [EBP+16]
+    mov     ECX, [EAX]                          ; number of bytes input will be the counter
+    mov     ESI, [EBP+24]                       ; string address in ESI
+
+        _numericLoop:
+            ; loop through and compare input to ASCII values for numeric strings
+            lodsb
+            cmp     AL, 48
+            jl      _nonNum
+            cmp     AL, 57
+            jl      _nextNum                    ; bad input will carry through to error
+
+        _nonNum:
+            ; input is invalid, display error message
+            pop     ECX                         ; restore ECX before leaving the loop
+            jmp     _invalidInput
+
+        _nextNum:
+            ; character is a number, check the next one
+            loop    _numericLoop
 
 _endLoop:
     pop     ECX                                 ; restore ECX before starting loop again
