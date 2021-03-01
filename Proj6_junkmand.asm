@@ -56,7 +56,7 @@ MAXSTRING = 32
     goodbye         BYTE    "Thanks for using the program! Goodbye!",13,10,0
 
     ; Arrays
-    inputString     BYTE    32 DUP(0)
+    inputString     BYTE    MAXSTRING DUP(0)
     numberArray     SDWORD  INTS_TO_READ DUP(?)
     multiplier      SDWORD  ?
 
@@ -115,10 +115,12 @@ readVal     PROC
     ; preserve registers and set base pointer
     push    EBP
     mov     EBP, ESP
-    push    ECX
-    push    ESI
     push    EAX
     push    EBX
+    push    ECX
+    push    EDX
+    push    EDI
+    push    ESI
 
     ; set up loop counter for getting input
     mov     ECX, [EBP+8]
@@ -138,7 +140,7 @@ _inputLoop:
     cmp     AL, 48
     jl      _invalidInput
     cmp     AL, 57
-    jl      _onlyNumeric                        ; anything else is invalid and will carry through
+    jl      _noSign                              ; anything else is invalid and will carry through
 
 _invalidInput:
     ; handle invalid inputs
@@ -168,6 +170,13 @@ _posNum:
     mov     EDI, [EBP+24]
     mov     AL, '0'
     stosb
+    jmp     _onlyNumeric
+
+_noSign:
+    ; move a 1 in to memory for usage later
+    mov     EBX, [EBP+36]
+    mov     EAX, 1
+    mov     [EBX], EAX
 
 _onlyNumeric:
     ; set up loop counter to check that input contains only numbers
@@ -175,6 +184,7 @@ _onlyNumeric:
     mov     EAX, [EBP+16]
     mov     ECX, [EAX]                          ; number of bytes input will be the counter
     mov     ESI, [EBP+24]                       ; string address in ESI
+    cld                                         ; ensure forward movement through string
 
         _numericLoop:
             ; loop through and compare input to ASCII values for numeric strings
@@ -193,16 +203,65 @@ _onlyNumeric:
             ; character is a number, check the next one
             loop    _numericLoop
 
-_endLoop:
-    pop     ECX                                 ; restore ECX before starting loop again
-    loop    _inputLoop
+    ; point EDI at correct array index for writing
+    pop     ECX
+    mov     EAX, [EBP+8]
+    sub     EAX, ECX
+    mov     EBX, 4
+    mul     EBX
+    mov     EBX, [EBP+12]
+    add     EBX, EAX
+    mov     EDI, EBX                            ; address to write to is now in EDI
+    push    ECX                                 ; ECX will be counter, so original count must be preserved
 
+    ; prepare for looping through string and converting to number
+    mov     ESI, [EBP+24]
+    mov     EAX, [EBP+16]
+    mov     ECX, [EAX]
+    xor     EBX, EBX                            ; EBX will be accumulator since EAX will hold byte
+    cld                                         
+
+        _numConvert:
+            ; move byte in to AL and convert to numeric value
+            lodsb
+            sub     AL, 48
+            imul    EBX, 10
+            jo      _tooBig
+            movsx   EDX, AL
+            add     EBX, EDX
+            jno     _nextByte
+
+        _tooBig:
+            ; number is too large for 32-bit register, show error message
+            pop     ECX
+            jmp     _invalidInput
+        
+        _nextByte:
+            ; loop to next byte
+            loop    _numConvert
+
+    ; write number to array
+    mov     EAX, [EBP+36]
+    mov     EDX, [EAX]                          ; will be 1 or -1 depending on sign
+    imul    EBX, EDX                            ; converts to negative if necessary
+    mov     [EDI], EBX
+
+_endLoop:
+    ; loop back to the top to get the next string
+    pop     ECX                                 ; restore ECX before starting loop again
+    dec     ECX
+    cmp     ECX, 0
+    jg      _inputLoop
+
+    ; restore registers and return control to calling procedure
+    pop     ESI
+    pop     EDI
+    pop     EDX
+    pop     ECX
     pop     EBX
     pop     EAX
-    pop     ESI
-    pop     ECX
     pop     EBP
-    ret
+    ret     32
 readVal     ENDP
 
 writeVal    PROC
