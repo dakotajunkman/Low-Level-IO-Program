@@ -357,13 +357,33 @@ _endLoop:
     ret     32
 readVal     ENDP
 
+;---------------------------------------------------------
+; Name: doMath
+;
+; Loops through number array and calculates sum and average of the numbers
+; Average is calculated using floor division
+;
+; Preconditions: Number array must be type SDWORD and contain only numbers
+;
+; Postconditions: None, all used registers are preserved and array remains intact
+;
+; Receives:
+;   [EBP+8] = address of number array
+;   [EBP+12] = address to store the sum
+;   [EBP+16] = address to store the average
+;   [EBP+20] = amount of numbers in the array
+;
+; returns: Average and sum of the array are stored in memory
+;---------------------------------------------------------
 doMath      PROC
 
     ; preserve registers and set base pointer
     push    EBP
     mov     EBP, ESP
     push    EAX
+    push    EBX
     push    ECX
+    push    EDX                                     ; not visible, but used in idiv
     push    EDI
 
     ; set up loop counter and point EDI at the array
@@ -377,9 +397,24 @@ _sumLoop:
     add     EDI, 4
     loop    _sumLoop
 
+    ; save sum in memory
+    mov     EBX, [EBP+12]
+    mov     [EBX], EAX                              ; sum is stored in memory
 
+    ; calculate average
+    mov     EBX, [EBP+20]
+    cdq
+    idiv    EBX
+
+    ; store average in memory
+    mov     EBX, [EBP+16]
+    mov     [EBX], EAX                              ; average stored in memory
+
+    ; restore registers and return to calling procedure
     pop     EDI
+    pop     EDX
     pop     ECX
+    pop     EBX
     pop     EAX
     pop     EBP
     ret     16
