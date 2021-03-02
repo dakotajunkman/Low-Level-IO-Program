@@ -75,10 +75,12 @@ MAXSTRING = 32
     ; Arrays
     inputString     BYTE    MAXSTRING DUP(0)
     numberArray     SDWORD  INTS_TO_READ DUP(?)
-    multiplier      SDWORD  ?
 
     ; numbers
     bytesRead       DWORD   0
+    multiplier      SDWORD  ?
+    average         SDWORD  ?
+    sum             SDWORD  ?
 
 .code
 main PROC
@@ -97,6 +99,12 @@ main PROC
     push    OFFSET numberArray
     push    INTS_TO_READ
     call    readVal
+
+    push    INTS_TO_READ
+    push    OFFSET average
+    push    OFFSET sum
+    push    OFFSET numberArray
+    call    doMath 
 
     push    OFFSET goodbye
     call    farewell
@@ -189,6 +197,7 @@ _inputLoop:
     ; use macro to get string input from user
     mGetString [EBP+28], [EBP+24], [EBP+20], [EBP+16]
     mov     ESI, [EBP+24]
+    xor     EAX, EAX
 
     ; check that first character is a sign or numeric
     cld
@@ -200,7 +209,7 @@ _inputLoop:
     cmp     AL, 48
     jl      _invalidInput
     cmp     AL, 57
-    jl      _noSign                              ; anything else is invalid and will carry through
+    jle     _noSign                                 ; anything else is invalid and will carry through
 
 _invalidInput:
     ; handle invalid inputs
@@ -242,9 +251,9 @@ _onlyNumeric:
     ; set up loop counter to check that input contains only numbers
     push    ECX
     mov     EAX, [EBP+16]
-    mov     ECX, [EAX]                          ; number of bytes input will be the counter
-    mov     ESI, [EBP+24]                       ; string address in ESI
-    cld                                         ; ensure forward movement through string
+    mov     ECX, [EAX]                              ; number of bytes input will be the counter
+    mov     ESI, [EBP+24]                           ; string address in ESI
+    cld                                             ; ensure forward movement through string
 
         _numericLoop:
             ; loop through and compare input to ASCII values for numeric strings
@@ -252,11 +261,11 @@ _onlyNumeric:
             cmp     AL, 48
             jl      _nonNum
             cmp     AL, 57
-            jl      _nextNum                    ; bad input will carry through to error
+            jle     _nextNum                        ; bad input will carry through to error
 
         _nonNum:
             ; input is invalid, display error message
-            pop     ECX                         ; restore ECX before leaving the loop
+            pop     ECX                             ; restore ECX before leaving the loop
             jmp     _invalidInput
 
         _nextNum:
@@ -271,14 +280,14 @@ _onlyNumeric:
     mul     EBX
     mov     EBX, [EBP+12]
     add     EBX, EAX
-    mov     EDI, EBX                            ; address to write to is now in EDI
-    push    ECX                                 ; ECX will be counter, so original count must be preserved
+    mov     EDI, EBX                                ; address to write to is now in EDI
+    push    ECX                                     ; ECX will be counter, so original count must be preserved
 
     ; prepare for looping through string and converting to number
     mov     ESI, [EBP+24]
     mov     EAX, [EBP+16]
     mov     ECX, [EAX]
-    xor     EBX, EBX                            ; EBX will be accumulator since EAX will hold byte
+    xor     EBX, EBX                                ; EBX will be accumulator since EAX will hold byte
     cld                                         
 
     ; determine whether to accumulate as negative or positive
@@ -347,6 +356,34 @@ _endLoop:
     pop     EBP
     ret     32
 readVal     ENDP
+
+doMath      PROC
+
+    ; preserve registers and set base pointer
+    push    EBP
+    mov     EBP, ESP
+    push    EAX
+    push    ECX
+    push    EDI
+
+    ; set up loop counter and point EDI at the array
+    mov     ECX, [EBP+20]
+    mov     EDI, [EBP+8]
+    xor     EAX, EAX                                ; EAX will be accumulator
+
+_sumLoop:
+    ; loop through each number and accumulate
+    add     EAX, [EDI]
+    add     EDI, 4
+    loop    _sumLoop
+
+
+    pop     EDI
+    pop     ECX
+    pop     EAX
+    pop     EBP
+    ret     16
+doMath      ENDP
 
 writeVal    PROC
 
