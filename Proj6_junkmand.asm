@@ -11,7 +11,24 @@ TITLE String Primitives and Marcros     (Proj6_junkmand.asm)
 ;              It then says goodbye to the user. 
 
 INCLUDE Irvine32.inc
-
+;---------------------------------------------------------
+; Name: mGetString
+;
+; Prompts user to enter a signed integer
+; Uses Irvine's ReadString procedure to gather the number
+; Number is stored in memory as a string
+; Number of bytes read is also stored in memory
+;
+; Preconditions: Do not use EAX, EBX, ECX, EDX as arguments
+;
+; Receives:
+;   direction: address of string prompt to display to user
+;   memLoc: memory address where string will be written
+;   maxLength: max number of bytes to read
+;   amtRead: memory location to store actual bytes read
+;
+; returns: Number string and bytes read are stored in memory
+;---------------------------------------------------------
 mGetString  MACRO   direction, memLoc, maxLength, amtRead
     
     ; preserve registers
@@ -89,6 +106,23 @@ main PROC
     Invoke ExitProcess,0	; exit to operating system
 main ENDP
 
+;---------------------------------------------------------
+; Name: intro
+;
+; Displays program title and name of programmer
+; Explains program and gives directions to the user
+;
+; Preconditions: None
+;
+; Postconditions: None, all used registers are preserved
+;
+; Receives:
+;   [EBP+8] = Address of explanation string
+;   [EBP+12] = Address of directions string
+;   [EBP+16] = Address of title and name string
+;
+; returns: Title, name, directions, and explanation are displayed to output
+;---------------------------------------------------------
 intro       PROC
 
     ; preserve registers and set base pointer
@@ -110,6 +144,32 @@ intro       PROC
     ret     12
 intro       ENDP
 
+;---------------------------------------------------------
+; Name: readVal
+;
+; Utilizes mGetString macro to read a signed integer input by the user
+; Ensures that the entry is a valid number
+; When entry is invalid, displays error and prompts user to try again
+; Converts string number to actual numeric value and stores in an array
+;
+; Preconditions: 
+;   mGetString macro must exist
+;   Number storage array must be type SDWORD
+;
+; Postconditions: None, all used registers are preserved
+;
+; Receives:
+;   [EBP+8] = Number of integers to gather
+;   [EBP+12] = Address of array to store the numbers
+;   [EBP+16] = Address of number of bytes entered by user
+;   [EBP+20] = Max amount of bytes that can be read
+;   [EBP+24] = Address of user input string
+;   [EBP+28] = Address of string prompting user to enter a number
+;   [EBP+32] = Address of error message string
+;   [EBP+36] = Address that holds whether number is negative or positive
+;
+; returns: String entries are converted to numbers and stored in memory array
+;---------------------------------------------------------
 readVal     PROC
 
     ; preserve registers and set base pointer
@@ -221,7 +281,33 @@ _onlyNumeric:
     xor     EBX, EBX                            ; EBX will be accumulator since EAX will hold byte
     cld                                         
 
-        _numConvert:
+    ; determine whether to accumulate as negative or positive
+    mov     EAX, [EBP+36]
+    mov     EDX, [EAX]
+    cmp     EDX, 1
+    je      _numConvertPos
+
+        _numConvertNeg:
+            ; move byte in to AL and convert to numeric value
+            lodsb
+            sub     AL, 48
+            imul    EBX, 10
+            jo      _tooSmall
+            movsx   EDX, AL
+            sub     EBX, EDX
+            jno     _nextByteNeg
+
+        _tooSmall:
+            ; number is too large for 32-bit register, show error message
+            pop     ECX
+            jmp     _invalidInput
+
+        _nextByteNeg:
+            ; loop to next byte
+            loop    _numConvertNeg
+            jmp     _writeArray                     ; skip over positive number converter
+
+        _numConvertPos:
             ; move byte in to AL and convert to numeric value
             lodsb
             sub     AL, 48
@@ -229,26 +315,24 @@ _onlyNumeric:
             jo      _tooBig
             movsx   EDX, AL
             add     EBX, EDX
-            jno     _nextByte
+            jno     _nextBytePos
 
         _tooBig:
             ; number is too large for 32-bit register, show error message
             pop     ECX
             jmp     _invalidInput
         
-        _nextByte:
+        _nextBytePos:
             ; loop to next byte
-            loop    _numConvert
+            loop    _numConvertPos
 
+_writeArray:
     ; write number to array
-    mov     EAX, [EBP+36]
-    mov     EDX, [EAX]                          ; will be 1 or -1 depending on sign
-    imul    EBX, EDX                            ; converts to negative if necessary
     mov     [EDI], EBX
 
 _endLoop:
     ; loop back to the top to get the next string
-    pop     ECX                                 ; restore ECX before starting loop again
+    pop     ECX                                     ; restore ECX before starting loop again
     dec     ECX
     cmp     ECX, 0
     jg      _inputLoop
