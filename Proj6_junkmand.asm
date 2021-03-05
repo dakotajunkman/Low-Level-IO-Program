@@ -85,7 +85,7 @@ mDisplayString  MACRO   number
 
 ENDM
 
-INTS_TO_READ = 10
+INTS_TO_READ = 3
 MAXSTRING = 32
 
 .data
@@ -310,12 +310,7 @@ _negNum:
     mov     EBX, [EBP+8]
     mov     EAX, -1
     mov     [EBX], EAX
-
-    ; set first character of string to '0' so it does not appear as bad input
-    mov     EDI, [EBP+24]
-    mov     AL, '0'
-    stosb
-    jmp     _onlyNumeric
+    jmp     _oneChar
 
 _posNum:
     ; move a 1 in to memory for usage later
@@ -323,7 +318,15 @@ _posNum:
     mov     EAX, 1
     mov     [EBX], EAX
 
-    ; set first character of string to '0' so it does not appear as bad input
+_oneChar:
+    ; check if sign is only character
+    mov     EBX, [EBP+16]
+    mov     EAX, [EBX]
+    cmp     EAX, 1
+    je      _invalidInput                           ; avoids single + or - being read as valid
+
+_zeroConvert:
+    ; convert sign to '0' so it doesn't show as bad input
     mov     EDI, [EBP+24]
     mov     AL, '0'
     stosb
@@ -339,7 +342,7 @@ _onlyNumeric:
     ; set up loop counter to check that input contains only numbers
     mov     EAX, [EBP+16]
     mov     ECX, [EAX]                              ; number of bytes input will be the counter
-    mov     ESI, [EBP+24]                           ; string address in ESI
+    mov     ESI, [EBP+24]
     cld                                             ; ensure forward movement through string
 
         _numericLoop:
