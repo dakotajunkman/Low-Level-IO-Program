@@ -50,10 +50,37 @@ mGetString  MACRO   direction, memLoc, maxLength, amtRead
     mov     EBX, amtRead
     mov     [EBX], EAX
 
-    ; preserve registers
+    ; restore registers
     pop     EBX
     pop     EAX
     pop     ECX
+    pop     EDX
+
+ENDM
+
+;---------------------------------------------------------
+; Name: mDisplayString
+;
+; Uses Irvine's WriteString procedure to display a string to output
+;
+; Preconditions: Do not use EDX as an argument
+;
+; Receives:
+;   number: address of string to display
+;
+; returns: string is displayed to output
+;---------------------------------------------------------
+
+mDisplayString  MACRO   number
+
+    ; preserve registers
+    push    EDX
+
+    ; display the string to output
+    mov     EDX, number
+    call    WriteString
+
+    ; restore registers
     pop     EDX
 
 ENDM
@@ -70,11 +97,15 @@ MAXSTRING = 32
                     BYTE    "display the numbers, their sum, and their rounded average.",13,10,13,10,0
     askForNumber    BYTE    "Please enter a signed integer: ",0
     errorString     BYTE    "ERROR: The number was too big/small or not a number at all!",13,10,0
-    goodbye         BYTE    "Thanks for using the program! Goodbye!",13,10,0
+    numbersString   BYTE    13,10,"You entered the following numbers:",13,10,0
+    sumString       BYTE    13,10,13,10,"The sum of these numbers is: ",0
+    averageString   BYTE    13,10,13,10,"The rounded average is: ",0
+    goodbye         BYTE    13,10,13,10,"Thanks for using the program! Goodbye!",13,10,0
 
     ; Arrays
     inputString     BYTE    MAXSTRING DUP(0)
     numberArray     SDWORD  INTS_TO_READ DUP(?)
+    outputString    BYTE    MAXSTRING DUP(0)
 
     ; numbers
     bytesRead       DWORD   0
@@ -85,31 +116,89 @@ MAXSTRING = 32
 .code
 main PROC
 
+    ; introduce the program to the user
     push    OFFSET titleAndName
     push    OFFSET directions
     push    OFFSET explanation
     call    intro
 
-    push    OFFSET multiplier
-    push    OFFSET errorString
+    ; set up loop to gather integers from the user
+    mov     ECX, INTS_TO_READ
+    mov     EDI, OFFSET numberArray
+
+_gatherLoop:
+    ; push arguments to call readVal
+    push    EDI                                     ; address to write the number
+    push    INTS_TO_READ
     push    OFFSET askForNumber
     push    OFFSET inputString
     push    MAXSTRING
     push    OFFSET bytesRead
-    push    OFFSET numberArray
-    push    INTS_TO_READ
+    push    OFFSET errorString
+    push    OFFSET multiplier
     call    readVal
 
+    ; loop back to top for next number
+    add     EDI, 4
+    loop    _gatherLoop
+
+    ; calculate sum and average
     push    INTS_TO_READ
     push    OFFSET average
     push    OFFSET sum
     push    OFFSET numberArray
     call    doMath 
 
+    ; display string to show output of entered numbers
+    mov     EDX, OFFSET numbersString
+    call    WriteString
+
+    ; set up loop to display the numbers and point EDI at the array
+    mov     ECX, INTS_TO_READ
+    mov     EDI, OFFSET numberArray
+
+_convertLoop:
+    ; loop through array and convert numbers to ASCII byte strings and display them to output
+    push    [EDI]
+    push    OFFSET outputString
+    call    writeVal
+
+    ; update EDI address and check if comma and space need to be written
+    add     EDI, 4
+    cmp     ECX, 1
+    je      _endLoop
+
+    ; write a comma and space
+    mov     AL, 44
+    call    WriteChar
+    mov     AL, 32
+    call    WriteChar
+
+_endLoop:
+    ; loop back to top to convert next number
+    loop    _convertLoop
+
+    ; display the sum to output
+    mov     EDX, OFFSET sumString
+    call    WriteString
+
+    ; convert sum to ASCII string and write to output
+    push    sum
+    push    OFFSET outputString
+    call    writeVal
+
+    ; display average to output
+    mov     EDX, OFFSET averageString
+    call    WriteString
+
+    ; convert average to ASCII string and write to output
+    push    average
+    push    OFFSET outputString
+    call    writeVal
+
+    ; say goodbye to the user
     push    OFFSET goodbye
     call    farewell
-
-
 
     Invoke ExitProcess,0	; exit to operating system
 main ENDP
@@ -155,28 +244,28 @@ intro       ENDP
 ;---------------------------------------------------------
 ; Name: readVal
 ;
-; Utilizes mGetString macro to read a signed integer input by the user
+; Utilizes mGetString macro get a user-input signed integer in to memory
 ; Ensures that the entry is a valid number
 ; When entry is invalid, displays error and prompts user to try again
-; Converts string number to actual numeric value and stores in an array
+; Converts string number to actual numeric value and stores in memory
+; Can convert both negative and positive numbers
 ;
 ; Preconditions: 
 ;   mGetString macro must exist
-;   Number storage array must be type SDWORD
 ;
 ; Postconditions: None, all used registers are preserved
 ;
 ; Receives:
-;   [EBP+8] = Number of integers to gather
-;   [EBP+12] = Address of array to store the numbers
+;   [EBP+8] = Address that holds whether number is negative or positive
+;   [EBP+12] = Address of error message string
 ;   [EBP+16] = Address of number of bytes entered by user
 ;   [EBP+20] = Max amount of bytes that can be read
 ;   [EBP+24] = Address of user input string
 ;   [EBP+28] = Address of string prompting user to enter a number
-;   [EBP+32] = Address of error message string
-;   [EBP+36] = Address that holds whether number is negative or positive
+;   [EBP+32] = Number of integers to gather
+;   [EBP+36] = Address to write the number
 ;
-; returns: String entries are converted to numbers and stored in memory array
+; returns: String entry is converted to number and stored in memory
 ;---------------------------------------------------------
 readVal     PROC
 
@@ -190,12 +279,11 @@ readVal     PROC
     push    EDI
     push    ESI
 
-    ; set up loop counter for getting input
-    mov     ECX, [EBP+8]
-
-_inputLoop:
+_getString:
     ; use macro to get string input from user
     mGetString [EBP+28], [EBP+24], [EBP+20], [EBP+16]
+
+    ; get string address in ESI and prepare EAX to receive bytes
     mov     ESI, [EBP+24]
     xor     EAX, EAX
 
@@ -213,13 +301,13 @@ _inputLoop:
 
 _invalidInput:
     ; handle invalid inputs
-    mov     EDX, [EBP+32]
+    mov     EDX, [EBP+12]
     call    WriteString
-    jmp     _inputLoop
+    jmp     _getString                              ; allow user to input new string
 
 _negNum:
     ; move a -1 in to memory for usage later
-    mov     EBX, [EBP+36]
+    mov     EBX, [EBP+8]
     mov     EAX, -1
     mov     [EBX], EAX
 
@@ -231,7 +319,7 @@ _negNum:
 
 _posNum:
     ; move a 1 in to memory for usage later
-    mov     EBX, [EBP+36]
+    mov     EBX, [EBP+8]
     mov     EAX, 1
     mov     [EBX], EAX
 
@@ -243,13 +331,12 @@ _posNum:
 
 _noSign:
     ; move a 1 in to memory for usage later
-    mov     EBX, [EBP+36]
+    mov     EBX, [EBP+8]
     mov     EAX, 1
     mov     [EBX], EAX
 
 _onlyNumeric:
     ; set up loop counter to check that input contains only numbers
-    push    ECX
     mov     EAX, [EBP+16]
     mov     ECX, [EAX]                              ; number of bytes input will be the counter
     mov     ESI, [EBP+24]                           ; string address in ESI
@@ -265,7 +352,6 @@ _onlyNumeric:
 
         _nonNum:
             ; input is invalid, display error message
-            pop     ECX                             ; restore ECX before leaving the loop
             jmp     _invalidInput
 
         _nextNum:
@@ -273,28 +359,20 @@ _onlyNumeric:
             loop    _numericLoop
 
     ; point EDI at correct array index for writing
-    pop     ECX
-    mov     EAX, [EBP+8]
-    sub     EAX, ECX
-    mov     EBX, 4
-    mul     EBX
-    mov     EBX, [EBP+12]
-    add     EBX, EAX
-    mov     EDI, EBX                                ; address to write to is now in EDI
-    push    ECX                                     ; ECX will be counter, so original count must be preserved
+    mov     EDI, [EBP+36]
 
     ; prepare for looping through string and converting to number
     mov     ESI, [EBP+24]
     mov     EAX, [EBP+16]
-    mov     ECX, [EAX]
+    mov     ECX, [EAX]                              ; number of bytes read is the counter
     xor     EBX, EBX                                ; EBX will be accumulator since EAX will hold byte
-    cld                                         
+    cld                                             ; move forward through string
 
     ; determine whether to accumulate as negative or positive
-    mov     EAX, [EBP+36]
-    mov     EDX, [EAX]
-    cmp     EDX, 1
-    je      _numConvertPos
+    mov     EAX, [EBP+8]
+    mov     EDX, [EAX]                              ; will be 1 or -1, depending on sign
+    cmp     EDX, 1                                  
+    je      _numConvertPos                          ; negative num will carry through
 
         _numConvertNeg:
             ; move byte in to AL and convert to numeric value
@@ -304,11 +382,10 @@ _onlyNumeric:
             jo      _tooSmall
             movsx   EDX, AL
             sub     EBX, EDX
-            jno     _nextByteNeg
+            jno     _nextByteNeg                    ; check that register hasn't overflowed
 
         _tooSmall:
             ; number is too large for 32-bit register, show error message
-            pop     ECX
             jmp     _invalidInput
 
         _nextByteNeg:
@@ -324,11 +401,10 @@ _onlyNumeric:
             jo      _tooBig
             movsx   EDX, AL
             add     EBX, EDX
-            jno     _nextBytePos
+            jno     _nextBytePos                    ; check that register hasn't overflowed
 
         _tooBig:
             ; number is too large for 32-bit register, show error message
-            pop     ECX
             jmp     _invalidInput
         
         _nextBytePos:
@@ -338,13 +414,6 @@ _onlyNumeric:
 _writeArray:
     ; write number to array
     mov     [EDI], EBX
-
-_endLoop:
-    ; loop back to the top to get the next string
-    pop     ECX                                     ; restore ECX before starting loop again
-    dec     ECX
-    cmp     ECX, 0
-    jg      _inputLoop
 
     ; restore registers and return control to calling procedure
     pop     ESI
@@ -420,19 +489,173 @@ _sumLoop:
     ret     16
 doMath      ENDP
 
+;---------------------------------------------------------
+; Name: writeVal
+;
+; Converts a number to its ASCII string representation
+; Utilizes mDisplayString macro to display the string to output
+; Can convert both negative and positive numbers to ASCII strings
+;
+; Preconditions: mDisplayString macro must exist
+;
+; Postconditions: None, all used registers are preserved
+;
+; Receives:
+;   [EBP+8] = Address to write string to
+;   [EBP+12] = Number to convert
+;
+; Returns:
+;   Number is converted to ASCII string and stored in memory
+;   ASCII string is displayed to output
+;---------------------------------------------------------
 writeVal    PROC
 
     ; preserve registers and set base pointer
     push    EBP
     mov     EBP, ESP
+    push    EAX
+    push    EBX
+    push    EDX
+    push    EDI
 
+    ; get string address in EDI and number in EBX and EAX
+    mov     EDI, [EBP+8]
+    mov     EBX, [EBP+12]
+    mov     EAX, EBX                                ; make copy of number to take absolute value
 
+    ; determine if number is negative
+    cmp     EBX, 0
+    jge     _checkSize
+    inc     EDI                                     ; make room to write negative sign
+    imul    EAX, -1                                 ; get absolute value
 
+_checkSize:
+    ; determine how many characters are needed
+    cmp     EAX, 10
+    jl      _writeOne
+    cmp     EAX, 100
+    jl      _writeTwo
+    cmp     EAX, 1000
+    jl      _writeThree
+    cmp     EAX, 10000
+    jl      _writeFour
+    cmp     EAX, 100000
+    jl      _writeFive
+    cmp     EAX, 1000000
+    jl      _writeSix
+    cmp     EAX, 10000000
+    jl      _writeSeven
+    cmp     EAX, 100000000
+    jl      _writeEight
+    cmp     EAX, 1000000000
+    jl      _writeNine                              ; anything larger will get 10
 
+    ; add 10 to EDI to make space to write bytes
+    add     EDI, 10
+    jmp     _convertPrep
+
+_writeNine:
+    ; add 9 to EDI to make space to write bytes
+    add     EDI, 9
+    jmp     _convertPrep
+
+_writeEight:
+    ; add 8 to EDI to make space to write bytes
+    add     EDI, 8
+    jmp     _convertPrep
+
+_writeSeven:
+    ; add 7 to EDI to make space to write bytes
+    add     EDI, 7
+    jmp     _convertPrep
+
+_writeSix:
+    ; add 6 to EDI to make space to write bytes
+    add     EDI, 6
+    jmp     _convertPrep
+
+_writeFive:
+    ; add 5 to EDI to make space to write bytes
+    add     EDI, 5
+    jmp     _convertPrep
+
+_writeFour:
+    ; add 4 to EDI to make space to write bytes
+    add     EDI, 4
+    jmp     _convertPrep
+
+_writeThree:
+    ; add 3 to EDI to make space to write bytes
+    add     EDI, 3
+    jmp     _convertPrep
+
+_writeTwo:
+    ; add 2 to EDI to make space to write bytes
+    add     EDI, 2
+    jmp     _convertPrep
+
+_writeOne:
+    ; add 1 to EDI to make space to write bytes
+    add     EDI, 1
+
+_convertPrep:
+    ; prepare to convert number to ASCII
+    push    EBX                                     ; preserve EBX value
+    std                                             ; move backward when writing
+    push    EAX                                     ; preserve EAX value for division
+    mov     AL, 0
+    stosb                                           ; null terminate the string
+    pop     EAX                                     ; restore EAX for division
+    
+_convertToString:
+    ; convert from number to ASCII representation of number
+    mov     EBX, 10
+    cdq
+    idiv    EBX
+    add     EDX, 48
+    push    EAX                                     ; preserve EAX value
+    mov     AL, DL
+    stosb                                           ; write ASCII char to memory
+    pop     EAX                                     ; restore EAX value
+    cmp     EAX, 0
+    je      _endConvert
+    jmp     _convertToString
+
+_endConvert:
+    ; write sign if necessary
+    pop     EBX                                     ; restore EBX value
+    cmp     EBX, 0
+    jge     _displayString
+    mov     AL, '-'
+    stosb                                           ; write negative sign when needed
+
+_displayString:
+    ; use macro to write string to output
+    mDisplayString  [EBP+8]
+
+    ; restore registers and return control to calling procedure
+    pop     EDI
+    pop     EDX
+    pop     EBX
+    pop     EAX
     pop     EBP
-    ret
+    ret     8
 writeVal    ENDP
 
+;---------------------------------------------------------
+; Name: farewell
+;
+; Thanks user for using the program and says goodbye
+;
+; Preconditions: None
+;
+; Postconditions: None, all used registers are preserved
+;
+; Receives:
+;   [EBP+8] = Address of goodbye string
+;
+; returns: Farewell message displayed to output
+;---------------------------------------------------------
 farewell    PROC
 
     ; preserve registers and set base pointer
