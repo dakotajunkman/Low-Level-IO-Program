@@ -1,7 +1,7 @@
 TITLE String Primitives and Marcros     (Proj6_junkmand.asm)
 
 ; Author: Dakota Junkman
-; Last Modified: 02/28/2021
+; Last Modified: 03/05/2021
 ; OSU email address: junkmand@oregonstate.edu
 ; Course number/section:   CS271 Section 400
 ; Project Number: 6                Due Date: 3/15/2021
