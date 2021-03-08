@@ -1,12 +1,13 @@
 TITLE String Primitives and Marcros     (Proj6_junkmand.asm)
 
 ; Author: Dakota Junkman
-; Last Modified: 03/05/2021
+; Last Modified: 03/08/2021
 ; OSU email address: junkmand@oregonstate.edu
 ; Course number/section:   CS271 Section 400
 ; Project Number: 6                Due Date: 3/15/2021
 ; Description: This program prompts the user to enter 10 signed decimal integers. Each integer must fit in to a 32 bit
-;              register. The program accepts the integers as strings and converts to signed integers for data validation. 
+;              register. The program accepts the integers as strings, validates the input, and converts to signed integers 
+;              The program then calculates the sum and rounded average of the numbers. Then, it converts the numbers back to strings.
 ;              It displays the numbers to the user as strings, then displays the sum and rounded average to the user. 
 ;              It then says goodbye to the user. 
 
@@ -70,7 +71,6 @@ ENDM
 ;
 ; returns: string is displayed to output
 ;---------------------------------------------------------
-
 mDisplayString  MACRO   number
 
     ; preserve registers
@@ -85,8 +85,9 @@ mDisplayString  MACRO   number
 
 ENDM
 
-INTS_TO_READ = 3
-MAXSTRING = 32
+    ; constants
+    INTS_TO_READ = 10
+    MAXSTRING = 32
 
 .data
 
@@ -114,7 +115,37 @@ MAXSTRING = 32
     sum             SDWORD  ?
 
 .code
+
+;---------------------------------------------------------
+; Name: main
+;
+; A test procedure to test that mGetString, mDisplayString, readVal, and writeVal work
+; calls intro to introduce the program to the user
+; sets up a loop and calls readVal to gather the necessary number of integers
+; calls doMath to calculate the sum and average
+; sets up a loop and calls writeVal to write the integers, average, and sum
+; calls farewell to exit the program
+;
+; Preconditions: None
+;
+; Postconditions: None, all used registers are preserved
+;
+; Receives:
+;   INTS_TO_READ is a constant
+;   numberArray is a global 
+;   numbersString is a global
+;   sumString is a global
+;   averageString is a global
+;
+; returns: Nothing
+;---------------------------------------------------------
 main PROC
+
+    ; preserve used registers
+    push    EAX
+    push    ECX
+    push    EDX
+    push    EDI
 
     ; introduce the program to the user
     push    OFFSET titleAndName
@@ -199,6 +230,12 @@ _endLoop:
     ; say goodbye to the user
     push    OFFSET goodbye
     call    farewell
+
+    ; restore used registers
+    pop     EDI
+    pop     EDX
+    pop     ECX
+    pop     EAX
 
     Invoke ExitProcess,0	; exit to operating system
 main ENDP
