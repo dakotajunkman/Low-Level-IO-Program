@@ -1,7 +1,7 @@
 TITLE String Primitives and Marcros     (Proj6_junkmand.asm)
 
 ; Author: Dakota Junkman
-; Last Modified: 03/08/2021
+; Last Modified: 03/10/2021
 ; OSU email address: junkmand@oregonstate.edu
 ; Course number/section:   CS271 Section 400
 ; Project Number: 6                Due Date: 3/15/2021
@@ -39,8 +39,7 @@ mGetString  MACRO   direction, memLoc, maxLength, amtRead
     push    EBX
 
     ; prompt user to enter a number
-    mov     EDX, direction
-    call    WriteString
+    mDisplayString  direction
 
     ; get number from the user
     mov     EDX, memLoc
@@ -101,6 +100,7 @@ ENDM
     numbersString   BYTE    13,10,"You entered the following numbers:",13,10,0
     sumString       BYTE    13,10,13,10,"The sum of these numbers is: ",0
     averageString   BYTE    13,10,13,10,"The rounded average is: ",0
+    commaSpace      BYTE    ", ",0
     goodbye         BYTE    13,10,13,10,"Thanks for using the program! Goodbye!",13,10,0
 
     ; Arrays
@@ -144,7 +144,6 @@ main PROC
     ; preserve used registers
     push    EAX
     push    ECX
-    push    EDX
     push    EDI
 
     ; introduce the program to the user
@@ -181,8 +180,7 @@ _gatherLoop:
     call    doMath 
 
     ; display string to show output of entered numbers
-    mov     EDX, OFFSET numbersString
-    call    WriteString
+    mDisplayString  OFFSET numbersString
 
     ; set up loop to display the numbers and point EDI at the array
     mov     ECX, INTS_TO_READ
@@ -195,23 +193,19 @@ _convertLoop:
     call    writeVal
 
     ; update EDI address and check if comma and space need to be written
-    add     EDI, 4
+    add     EDI, TYPE numberArray
     cmp     ECX, 1
     je      _endLoop
 
     ; write a comma and space
-    mov     AL, 44
-    call    WriteChar
-    mov     AL, 32
-    call    WriteChar
+    mDisplayString  OFFSET commaSpace
 
 _endLoop:
     ; loop back to top to convert next number
     loop    _convertLoop
 
     ; display the sum to output
-    mov     EDX, OFFSET sumString
-    call    WriteString
+    mDisplayString  OFFSET sumString
 
     ; convert sum to ASCII string and write to output
     push    sum
@@ -219,8 +213,7 @@ _endLoop:
     call    writeVal
 
     ; display average to output
-    mov     EDX, OFFSET averageString
-    call    WriteString
+    mDisplayString  OFFSET averageString
 
     ; convert average to ASCII string and write to output
     push    average
@@ -233,7 +226,6 @@ _endLoop:
 
     ; restore used registers
     pop     EDI
-    pop     EDX
     pop     ECX
     pop     EAX
 
@@ -246,7 +238,7 @@ main ENDP
 ; Displays program title and name of programmer
 ; Explains program and gives directions to the user
 ;
-; Preconditions: None
+; Preconditions: mGetString macro must exist
 ;
 ; Postconditions: None, all used registers are preserved
 ;
@@ -262,18 +254,13 @@ intro       PROC
     ; preserve registers and set base pointer
     push    EBP
     mov     EBP, ESP
-    push    EDX
 
     ; display title and directions to the user
-    mov     EDX, [EBP+16]
-    call    WriteString
-    mov     EDX, [EBP+12]
-    call    WriteString
-    mov     EDX, [EBP+8]
-    call    WriteString
+    mDisplayString  [EBP+16]
+    mDisplayString  [EBP+12]
+    mDisplayString  [EBP+8]
 
     ; restore registers and return to calling procedure
-    pop     EDX
     pop     EBP
     ret     12
 intro       ENDP
@@ -515,6 +502,18 @@ _sumLoop:
     cdq
     idiv    EBX
 
+    ; check if number is negative
+    cmp     EAX, 0
+    jl      _negative
+    jmp     _storeAvg
+
+_negative:
+    ; see if number needs to be floor rounded
+    cmp     EDX, 0
+    je      _storeAvg
+    dec     EAX                                     ; remainder means a round down is necessary
+
+_storeAvg:
     ; store average in memory
     mov     EBX, [EBP+16]
     mov     [EBX], EAX                              ; average stored in memory
@@ -648,7 +647,7 @@ _convertPrep:
     pop     EAX                                     ; restore EAX for division
     
 _convertToString:
-    ; convert from number to ASCII representation of number
+    ; convert from number to string representation of number
     mov     EBX, 10
     cdq
     idiv    EBX
@@ -687,7 +686,7 @@ writeVal    ENDP
 ;
 ; Thanks user for using the program and says goodbye
 ;
-; Preconditions: None
+; Preconditions: mDisplayString macro must exist
 ;
 ; Postconditions: None, all used registers are preserved
 ;
@@ -704,8 +703,7 @@ farewell    PROC
     push    EDX
 
     ; display farewell message to user
-    mov     EDX, [EBP+8]
-    call    WriteString
+    mDisplayString  [EBP+8]
 
     ; restore registers and return to calling procedure
     pop     EDX
