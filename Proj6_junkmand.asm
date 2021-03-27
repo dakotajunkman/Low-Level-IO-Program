@@ -1,15 +1,4 @@
-TITLE String Primitives and Macros     (Proj6_junkmand.asm)
-
-; Author: Dakota Junkman
-; Last Modified: 03/14/2021
-; OSU email address: junkmand@oregonstate.edu
-; Course number/section:   CS271 Section 400
-; Project Number: 6                Due Date: 3/15/2021
-; Description: This program prompts the user to enter 10 signed decimal integers. Each integer must fit in to a 32 bit
-;              register. The program accepts the integers as strings, validates the input, and converts to signed integers 
-;              The program then calculates the sum and rounded average of the numbers. Then, it converts the numbers back to strings.
-;              It displays the numbers to the user as strings, then displays the sum and rounded average to the user. 
-;              It then says goodbye to the user. 
+TITLE String Primitives and Macros
 
 INCLUDE Irvine32.inc
 ;---------------------------------------------------------
